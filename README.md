@@ -226,35 +226,6 @@ $$
 
 ---
 
-## Necessary improvements implemented (minimal changes)
-
-These changes keep your original structure intact (same data loading, same training objective), but fix correctness/numerical issues:
-
-1. **Biases are now used in the forward pass**
-
-   The network was initialising and updating biases, but not adding them during forward propagation. The forward pass now correctly computes:
-
-   $$
-   Z^{(\ell)} = W^{(\ell)}A^{(\ell-1)} + b^{(\ell)}
-   $$
-
-2. **Softmax is now a real (stable) softmax**
-
-   Previously it was `x / sum(x)`. It is now:
-
-   $$
-   \mathrm{softmax}(z)_k = \frac{e^{z_k - \max(z)}}{\sum_j e^{z_j - \max(z)}}
-   $$
-
-3. **Batch splitting bug fixed**
-
-   `np.array_split` requires an integer number of sections; the code previously passed a float. This is now cast to an `int`.
-
-4. **Sigmoid made numerically safer**
-
-   Inputs are clipped before `exp` to prevent overflow in extreme cases.
-
-
 ## Acknowledgements / references
 
 The explanations and standard neural-network derivations in this README were informed by **Michael Nielsen’s free online book**:

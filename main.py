@@ -81,26 +81,34 @@ def initialiseNetwork(hiddenLayerConfig):
 
 # %%
 def sigmoid(x):
+    x = np.clip(x, -500, 500)
     return 1 / (1 + np.exp(-x))
 
+
 def sigmoidPrime(x):
-    return sigmoid(x) * (1 - sigmoid(x))
+    s = sigmoid(x)
+    return s * (1 - s)
 
 
 # %%
 def softmax(outputArr):
-    return outputArr / np.sum(outputArr)
+    shifted = outputArr - np.max(outputArr)
+    exp = np.exp(shifted)
+    return exp / np.sum(exp)
 
 # %%
 def feedforward(inputs): # inputs are going to be in the form of a matrix n * m where n is the number of input neurons and m the number of training cases
     
+    if inputs.ndim == 1:
+        inputs = inputs.reshape(-1, 1)
+
     unweightedOutputs = [] # this the one in the book which was like z^l
     weightedOutputs = [] # this is z after applying activation e.g sigmoid
     currentLayer = inputs
     i=1
     for layer in layers: 
 
-        unweightedOutput = np.matmul(layer[0], currentLayer) 
+        unweightedOutput = np.matmul(layer[0], currentLayer) + layer[1].T
         weightedOutput = sigmoid(unweightedOutput)
         
         unweightedOutputs.append(unweightedOutput)
@@ -165,7 +173,7 @@ def backProp(unweightedOutputs, activations, inputs, finalOuputsBatch, desiredOu
         i += 1
         
 
-    averageLayerBiasesDerivative = [x.mean(1) for x in allLayerBiasesDerivatives]
+    averageLayerBiasesDerivative = [np.mean(x, axis=1, keepdims=True) for x in allLayerBiasesDerivatives]
     averageLayerWeightsDerivative = [x/numberOfCases for x in allLayerWeightsDerivatives]
     
     
@@ -173,8 +181,9 @@ def backProp(unweightedOutputs, activations, inputs, finalOuputsBatch, desiredOu
 
 # %%
 def createBatches(data, labels, batchSize):
-    dataBatches = np.array_split(data, data.shape[1]/batchSize, axis=1)
-    labelBatches = np.array_split(labels, data.shape[1]/batchSize, axis=1)
+    numBatches = int(data.shape[1] / batchSize)
+    dataBatches = np.array_split(data, numBatches, axis=1)
+    labelBatches = np.array_split(labels, numBatches, axis=1)
     
     
     batches = list(zip(dataBatches, labelBatches))
@@ -227,13 +236,16 @@ print(finalOutput)
 # %%
 def feedforwardTest(inputs): # inputs are going to be in the form of a matrix n * m where n is the number of input neurons and m the number of training cases
     
+    if inputs.ndim == 1:
+        inputs = inputs.reshape(-1, 1)
+
     unweightedOutputs = [] # this the one in the book which was like z^l
     weightedOutputs = [] # this is z after applying activation e.g sigmoid
     currentLayer = inputs
     
     for layer in layers: 
 
-        unweightedOutput = np.matmul(layer[0], currentLayer) 
+        unweightedOutput = np.matmul(layer[0], currentLayer) + layer[1].T
         weightedOutput = sigmoid(unweightedOutput)
         
         unweightedOutputs.append(unweightedOutput)

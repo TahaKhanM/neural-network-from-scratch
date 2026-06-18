@@ -1,8 +1,12 @@
 # Neural Network From Scratch (NumPy): MNIST
 
-This project is a **from-scratch** implementation of a fully connected (dense) neural network trained on **MNIST** digit classification (0–9). It uses only **NumPy** for the actual neural network computations (plus `idx2numpy` to read MNIST IDX files and `matplotlib` for visualisation).
+This project is a **from-scratch** implementation of a fully connected (dense) neural network trained on **MNIST** digit classification (0-9). It uses only **NumPy** for the actual neural network computations (plus `idx2numpy` to read MNIST IDX files and `matplotlib` for visualisation).
 
 The entire project lives in a single file: **`main.py`**.
+
+## Result
+
+The original run reached about **94% accuracy on MNIST** using stochastic gradient descent and backpropagation implemented directly in NumPy.
 
 ---
 
@@ -11,7 +15,9 @@ The entire project lives in a single file: **`main.py`**.
 Install dependencies:
 
 ```bash
-pip install numpy idx2numpy matplotlib
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 Place the MNIST IDX files under `./Data` using the same paths referenced in `main.py`:
@@ -28,6 +34,8 @@ python main.py
 ```
 
 The script trains for a fixed number of epochs, prints the average mini-batch cost per epoch, then evaluates on the test set.
+
+> Note: this is a learning project rather than a production training framework. `main.py` intentionally keeps the implementation explicit so the forward pass, backpropagation, batching and parameter updates can be inspected directly.
 
 ---
 
@@ -224,6 +232,12 @@ $$
 - `feedforwardTest(inputs)` runs a forward pass and then applies `softmax` **column-wise**.
 - Predictions are obtained via `argmax`.
 
+## Repository notes
+
+- The MNIST IDX files are included so the original notebook/script paths remain inspectable.
+- Some files are duplicated in `Data/` because the notebook and script used slightly different path conventions.
+- A cleaner future version would add CLI arguments, deterministic seeding, train/test split configuration and model checkpointing.
+
 ---
 
 ## Acknowledgements / references
@@ -231,4 +245,3 @@ $$
 The explanations and standard neural-network derivations in this README were informed by **Michael Nielsen’s free online book**:
 
 - Michael A. Nielsen, *Neural Networks and Deep Learning* (Determination Press, 2015). Available at: `http://neuralnetworksanddeeplearning.com/`
-

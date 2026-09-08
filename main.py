@@ -1,313 +1,177 @@
-# %%
+"""A dense sigmoid network and MNIST training loop implemented with NumPy."""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import struct
+
 import numpy as np
-import idx2numpy
-import matplotlib.pyplot as plt
-import random
-from statistics import mean
 
-trainingImagesRawData = './Data/train-images.idx3-ubyte'
-trainingImages = idx2numpy.convert_from_file(trainingImagesRawData)
 
-trainingLabelsRawData = './Data/train-labels.idx1-ubyte'
-trainingLabels = idx2numpy.convert_from_file(trainingLabelsRawData)
-
-
-# Normalise the datasets
-trainingImages = trainingImages / 255.0
-
-trainingImages = [x.flatten() for x in trainingImages] 
-
-
-# %%
-def displayImage(dataset, num):
-    image = np.array(dataset[:,num], dtype='float')
-    pixels = image.reshape((28, 28))
-    plt.imshow(pixels, cmap='gray')
-    plt.show()
-
-# %%
-def createDesiredOutputs(labels):
-    desiredOutputs = np.zeros((10, len(labels)))
-    row = 0
-    for label in labels:
-        
-        desiredOutputs[label, row] = 1
-        row += 1
-    
-    return desiredOutputs
-
-# %%
-desiredOutputs = createDesiredOutputs(trainingLabels)
-
-
-# %%
-trainingImages = np.array(trainingImages).T
-
-# %%
-testImagesRawData = './Data/t10k-images-idx3-ubyte/t10k-images-idx3-ubyte'
-testImages = idx2numpy.convert_from_file(testImagesRawData)
-
-testLabelsRawData = './Data/t10k-labels-idx1-ubyte/t10k-labels-idx1-ubyte'
-testLabels = idx2numpy.convert_from_file(testLabelsRawData)
-
-
-# Normalise the datasets
-testImages = testImages / 255.0
-
-testImages = [x.flatten() for x in testImages] 
-
-desiredtestOutputs = createDesiredOutputs(testLabels)
-
-
-testImages = np.array(testImages).T
-
-# %%
-layers = [] # The hidden layers and output layer in order
-
-# %%
-def initialiseNetwork(hiddenLayerConfig):
-    
-    previousLayerSize = 28*28 # Size of input layer as 28*28 pixel images
-    hiddenLayerConfig.append(10) # Add in output layer as range from digits 0 to 9
-    
-    for layerConfig in hiddenLayerConfig:
-        layerWeights = np.random.randn(layerConfig, previousLayerSize)
-        layerBiases = np.random.randn(1,layerConfig)
-        layers.append([layerWeights, layerBiases])
-        previousLayerSize = layerConfig
-        
-
-
-
-# %%
-def sigmoid(x):
-    x = np.clip(x, -500, 500)
-    return 1 / (1 + np.exp(-x))
-
-
-def sigmoidPrime(x):
-    s = sigmoid(x)
-    return s * (1 - s)
-
-
-# %%
-def softmax(outputArr):
-    shifted = outputArr - np.max(outputArr)
-    exp = np.exp(shifted)
-    return exp / np.sum(exp)
-
-# %%
-def feedforward(inputs): # inputs are going to be in the form of a matrix n * m where n is the number of input neurons and m the number of training cases
-    
-    if inputs.ndim == 1:
-        inputs = inputs.reshape(-1, 1)
-
-    unweightedOutputs = [] # this the one in the book which was like z^l
-    weightedOutputs = [] # this is z after applying activation e.g sigmoid
-    currentLayer = inputs
-    i=1
-    for layer in layers: 
-
-        unweightedOutput = np.matmul(layer[0], currentLayer) + layer[1].T
-        weightedOutput = sigmoid(unweightedOutput)
-        
-        unweightedOutputs.append(unweightedOutput)
-        weightedOutputs.append(weightedOutput)
-
-        currentLayer = weightedOutput
-        
-        i+= 1
-
-        
-    finalOutput = weightedOutputs[-1]
-    
-    return finalOutput, weightedOutputs, unweightedOutputs
-    
-
-# %%
-def calculateCost(desiredOutputs, actualOutputs):
-    numberOfTrainingCases = actualOutputs.shape[1]
-    
-    costs = []
-    for trainingCase in range(numberOfTrainingCases):
-
-        trainingCaseOuput = actualOutputs[:,trainingCase]
-        trainingCaseDesired = desiredOutputs[:,trainingCase]
-        # print(trainingCaseDesired, trainingCaseOuput)
-        costForTrainingCase = np.sum([(x - y)**2 for x, y in zip(trainingCaseDesired,trainingCaseOuput)])/10
-        costs.append(costForTrainingCase)
-    return costs
-
-# %%
-def backProp(unweightedOutputs, activations, inputs, finalOuputsBatch, desiredOutputsBatch):
-    allLayerErrors = []
-    numberOfCases = inputs.shape[1]
-    # Error in output layer 
-    outputLayerErrorP1 = 2 * (finalOuputsBatch - desiredOutputsBatch) # Because this is derivative of cost function (y-x)^2 to 2(x-y)
-    outputLayerErrorP2 = sigmoidPrime(unweightedOutputs[-1])
-    outputLayerError = np.multiply(outputLayerErrorP1, outputLayerErrorP2) # This is schur product not matrix multiplication
-    
-    currentLayerError = outputLayerError
-    allLayerErrors.insert(0, currentLayerError)
-
-    for layer in range(len(layers)-1):
-
-        lMinusOneErrorP1 = np.matmul(layers[-1 * (layer+1)][0].T, currentLayerError) 
-        lMinusOneErrorP2 = sigmoidPrime(unweightedOutputs[-1 * (layer+2)])
-        lMinusOneError = np.multiply(lMinusOneErrorP1, lMinusOneErrorP2)
-        
-        currentLayerError = lMinusOneError
-        allLayerErrors.insert(0, currentLayerError)
-    
-    allLayerBiasesDerivatives = allLayerErrors
-    allLayerWeightsDerivatives = []
-    
-    
-    previousLayerActivations = inputs
-    i = 0
-    for layerError in allLayerErrors:
-        layerWeightDerivative = np.matmul(previousLayerActivations, layerError.T)
-        
-        allLayerWeightsDerivatives.append(layerWeightDerivative)
-        previousLayerActivations = activations[i]
-        i += 1
-        
-
-    averageLayerBiasesDerivative = [np.mean(x, axis=1, keepdims=True) for x in allLayerBiasesDerivatives]
-    averageLayerWeightsDerivative = [x/numberOfCases for x in allLayerWeightsDerivatives]
-    
-    
-    return averageLayerBiasesDerivative, averageLayerWeightsDerivative
-
-# %%
-def createBatches(data, labels, batchSize):
-    numBatches = int(data.shape[1] / batchSize)
-    dataBatches = np.array_split(data, numBatches, axis=1)
-    labelBatches = np.array_split(labels, numBatches, axis=1)
-    
-    
-    batches = list(zip(dataBatches, labelBatches))
-    
-    return batches
-
-# %%
-def stochasticGradientDescent(trainingRate):
-    
-    batches = createBatches(trainingImages, desiredOutputs, 100)
-    totalCosts = []
-    
-    for trainingBatch in batches:
-        trainingBatchFinalOutput, trainingBatchWeightedOutputs, trainingBatchUnweightedOutputs = feedforward(trainingBatch[0])
-
-        averageLayerBiasesDerivative, averageLayerWeightsDerivative = backProp(trainingBatchUnweightedOutputs, trainingBatchWeightedOutputs, trainingBatch[0], trainingBatchFinalOutput, trainingBatch[1])
-        
-        for i in range(len(layers)):
-            layers[i][0] -= trainingRate * averageLayerWeightsDerivative[i].T
-            layers[i][1] -= trainingRate * averageLayerBiasesDerivative[i].T
-            
-        # print("Weight updates:", [np.mean(np.abs(trainingRate * grad)) for grad in averageLayerWeightsDerivative])
-        
-        totalCosts.append(mean(calculateCost(trainingBatchFinalOutput, trainingBatch[1])))
-        
-    return totalCosts
-        
-
-# %%
-initialiseNetwork([100,20])
-
-trainingRate=3
-
-for i in range(50):
-    totalCosts = stochasticGradientDescent(trainingRate)
-    totalAverageCost = mean(totalCosts)
-    
-    
-    print('Epoch: ', i+1)
-    print("Current Network cost: ", totalAverageCost)
-    if i == 40:
-        trainingRate = 0.6
-    
-
-# %%
-finalOutput, weightedOutputs, unweightedOutputs = feedforward(trainingImages[:,1])
-
-print(finalOutput)
-
-# %%
-def feedforwardTest(inputs): # inputs are going to be in the form of a matrix n * m where n is the number of input neurons and m the number of training cases
-    
-    if inputs.ndim == 1:
-        inputs = inputs.reshape(-1, 1)
-
-    unweightedOutputs = [] # this the one in the book which was like z^l
-    weightedOutputs = [] # this is z after applying activation e.g sigmoid
-    currentLayer = inputs
-    
-    for layer in layers: 
-
-        unweightedOutput = np.matmul(layer[0], currentLayer) + layer[1].T
-        weightedOutput = sigmoid(unweightedOutput)
-        
-        unweightedOutputs.append(unweightedOutput)
-        weightedOutputs.append(weightedOutput)
-
-        currentLayer = weightedOutput
-
-
-        
-    finalOutput = weightedOutputs[-1]
-
-    
-    finalOutput = np.apply_along_axis(softmax, axis=0, arr=finalOutput)
-    return finalOutput, weightedOutputs, unweightedOutputs
-
-# %%
-def recordGuesses(arr):
-
-    return np.argmax(arr)
-
-
-def checkGuesses(guesses, answers):#
-    mark = 0
-    for i in range(len(guesses)):
-        if guesses[i] == answers[i]:
-            mark += 1
-            
-    return mark
-
-# %%
-
-
-batches = createBatches(testImages, desiredtestOutputs, 100)
-totalCosts = []
-marks = []
-
-i = 100
-for trainingBatch in batches:
-    trainingBatchFinalOutput, trainingBatchWeightedOutputs, trainingBatchUnweightedOutputs = feedforwardTest(trainingBatch[0])
-        
-    # print("Weight updates:", [np.mean(np.abs(trainingRate * grad)) for grad in averageLayerWeightsDerivative])
-    
-
-    totalCosts.append(mean(calculateCost(trainingBatchFinalOutput, trainingBatch[1])))
-    
-    correctGuesses = 0
-    guesses = []
-    for col in range(trainingBatchFinalOutput.shape[1]):
-        guess = recordGuesses(trainingBatchFinalOutput[:,col])
-        guesses.append(guess)
-        
-    answers = testLabels[(i-100):i]
-    
-    marks.append(checkGuesses(guesses, answers))
-    i += 100
-    
-print(mean(marks))
-    
-    
-    
-totalAverageCost = mean(totalCosts)
-
-print("Current Network cost: ", totalAverageCost)
-
-
+def sigmoid(z):
+    # exp(-abs(z)) avoids overflow without changing the function by clipping.
+    exp = np.exp(-np.abs(z))
+    return np.where(z >= 0, 1 / (1 + exp), exp / (1 + exp))
+
+
+def read_idx(path):
+    """Read an unsigned-byte IDX tensor and reject malformed/truncated files."""
+    raw = Path(path).read_bytes()
+    if len(raw) < 4 or raw[:3] != b'\x00\x00\x08' or raw[3] == 0:
+        raise ValueError(f'{path}: expected an unsigned-byte IDX file')
+    dimensions = raw[3]
+    header = 4 + 4 * dimensions
+    if len(raw) < header:
+        raise ValueError(f'{path}: truncated IDX header')
+    shape = struct.unpack(f'>{dimensions}I', raw[4:header])
+    if any(size == 0 for size in shape) or len(raw) - header != int(np.prod(shape)):
+        raise ValueError(f'{path}: IDX shape does not match payload length')
+    return np.frombuffer(raw, dtype=np.uint8, offset=header).reshape(shape)
+
+
+def load_mnist(directory, split):
+    prefix = 'train' if split == 'train' else 't10k'
+    images = read_idx(directory / f'{prefix}-images.idx3-ubyte')
+    labels = read_idx(directory / f'{prefix}-labels.idx1-ubyte')
+    if images.ndim != 3 or images.shape[1:] != (28, 28) or labels.shape != (len(images),):
+        raise ValueError('expected matching 28x28 MNIST images and labels')
+    if np.any(labels > 9):
+        raise ValueError('MNIST labels must be in 0..9')
+    return images.reshape(len(images), -1).T.astype(np.float64) / 255, labels
+
+
+def one_hot(labels, classes):
+    labels = np.asarray(labels)
+    if labels.ndim != 1 or not np.issubdtype(labels.dtype, np.integer):
+        raise ValueError('labels must be a one-dimensional integer array')
+    if np.any(labels < 0) or np.any(labels >= classes):
+        raise ValueError('label outside class range')
+    return np.eye(classes)[labels].T
+
+
+class Network:
+    """Column batches: inputs (features, cases), weights (outputs, inputs)."""
+
+    def __init__(self, sizes, seed=0):
+        if len(sizes) < 2 or any(not isinstance(n, (int, np.integer)) or n < 1 for n in sizes):
+            raise ValueError('sizes must contain at least two positive integers')
+        self.sizes = tuple(sizes)
+        rng = np.random.default_rng(seed)
+        self.weights = [rng.normal(0, 1 / np.sqrt(a), (b, a)) for a, b in zip(sizes, sizes[1:])]
+        self.biases = [np.zeros((n, 1)) for n in sizes[1:]]
+
+    def _inputs(self, x):
+        x = np.asarray(x, dtype=float)
+        if x.ndim == 1:
+            x = x[:, None]
+        if x.ndim != 2 or x.shape[0] != self.sizes[0] or x.shape[1] == 0 or not np.all(np.isfinite(x)):
+            raise ValueError('inputs must be finite, nonempty column batches with the expected feature count')
+        return x
+
+    def _forward(self, x):
+        activations = [self._inputs(x)]
+        for w, b in zip(self.weights, self.biases):
+            activations.append(sigmoid(w @ activations[-1] + b))
+        return activations
+
+    def predict(self, x):
+        return self._forward(x)[-1]
+
+    def loss_and_gradients(self, x, y):
+        activations = self._forward(x)
+        output = activations[-1]
+        y = np.asarray(y, dtype=float)
+        if y.shape != output.shape or not np.all(np.isfinite(y)):
+            raise ValueError('targets must be finite and match the output shape')
+        difference = output - y
+        loss = float(np.mean(difference ** 2))
+        # Mean over BOTH classes and cases: the derivative matches the reported MSE.
+        delta = 2 * difference * output * (1 - output) / output.size
+        dw, db = [None] * len(self.weights), [None] * len(self.biases)
+        for layer in reversed(range(len(self.weights))):
+            dw[layer] = delta @ activations[layer].T
+            db[layer] = delta.sum(axis=1, keepdims=True)
+            if layer:
+                a = activations[layer]
+                delta = (self.weights[layer].T @ delta) * a * (1 - a)
+        return loss, dw, db
+
+    def train_epoch(self, x, y, learning_rate, batch_size, rng):
+        x = self._inputs(x)
+        if y.shape != (self.sizes[-1], x.shape[1]) or not np.all(np.isfinite(y)):
+            raise ValueError('targets must match the number of classes and examples')
+        if not np.isfinite(learning_rate) or learning_rate <= 0 or not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError('learning rate and integer batch size must be positive')
+        order = rng.permutation(x.shape[1])
+        total_loss = 0.0
+        for start in range(0, len(order), batch_size):
+            indices = order[start:start + batch_size]
+            loss, dw, db = self.loss_and_gradients(x[:, indices], y[:, indices])
+            for w, b, grad_w, grad_b in zip(self.weights, self.biases, dw, db):
+                w -= learning_rate * grad_w
+                b -= learning_rate * grad_b
+            total_loss += loss * len(indices)
+        return total_loss / len(order)
+
+    def evaluate(self, x, labels, batch_size=1000):
+        x = self._inputs(x)
+        targets = one_hot(labels, self.sizes[-1])
+        if targets.shape[1] != x.shape[1] or not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError('labels must match examples and batch size must be positive')
+        squared_error, correct = 0.0, 0
+        for start in range(0, x.shape[1], batch_size):
+            end = start + batch_size
+            output = self.predict(x[:, start:end])
+            squared_error += np.sum((output - targets[:, start:end]) ** 2)
+            correct += np.count_nonzero(output.argmax(axis=0) == labels[start:end])
+        return {'mse': float(squared_error / targets.size), 'accuracy': float(correct / x.shape[1])}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--data', type=Path, default=Path(__file__).parent / 'Data')
+    parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--learning-rate', type=float, default=10.0)
+    parser.add_argument('--batch-size', type=int, default=100)
+    parser.add_argument('--hidden', type=int, nargs='+', default=[100, 20])
+    parser.add_argument('--seed', type=int, default=7)
+    parser.add_argument('--train-limit', type=int, help='subsample training cases after reserving validation data')
+    parser.add_argument('--validation-size', type=int, default=5000)
+    parser.add_argument('--metrics', type=Path, help='write reproducible run metadata and metrics as JSON')
+    args = parser.parse_args()
+    if args.epochs < 1 or args.validation_size < 1 or args.batch_size < 1 or args.learning_rate <= 0 or not np.isfinite(args.learning_rate) or any(n < 1 for n in args.hidden):
+        parser.error('epochs, sizes, and finite learning rate must be positive')
+    x, labels = load_mnist(args.data, 'train')
+    if args.validation_size >= x.shape[1] or (args.train_limit is not None and not 1 <= args.train_limit <= x.shape[1] - args.validation_size):
+        parser.error('leave training cases after validation; train-limit must fit the training partition')
+    # Split only the official training set. The official test set is evaluated once, at the end.
+    split_rng = np.random.default_rng(args.seed)
+    order = split_rng.permutation(x.shape[1])
+    valid = order[:args.validation_size]
+    train = order[args.validation_size:][:args.train_limit]
+    train_x, train_labels = x[:, train], labels[train]
+    valid_x, valid_labels = x[:, valid], labels[valid]
+    del x
+    network = Network([784, *args.hidden, 10], args.seed)
+    shuffle_rng = np.random.default_rng(args.seed + 1)
+    targets = one_hot(train_labels, 10)
+    history = []
+    for epoch in range(1, args.epochs + 1):
+        training_loss = network.train_epoch(train_x, targets, args.learning_rate, args.batch_size, shuffle_rng)
+        metrics = {'epoch': epoch, 'online_train_mse': training_loss, 'validation': network.evaluate(valid_x, valid_labels)}
+        history.append(metrics)
+        print(json.dumps(metrics), flush=True)
+    test_x, test_labels = load_mnist(args.data, 'test')
+    result = {'seed': args.seed, 'architecture': list(network.sizes), 'learning_rate': args.learning_rate,
+              'batch_size': args.batch_size, 'train_cases': len(train), 'validation_cases': len(valid),
+              'test_cases': len(test_labels), 'numpy_version': np.__version__, 'history': history,
+              'test': network.evaluate(test_x, test_labels)}
+    print(json.dumps({'test': result['test']}))
+    if args.metrics:
+        args.metrics.parent.mkdir(parents=True, exist_ok=True)
+        args.metrics.write_text(json.dumps(result, indent=2) + '\n')
+
+
+if __name__ == '__main__':
+    main()

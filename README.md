@@ -1,234 +1,62 @@
-# Neural Network From Scratch (NumPy): MNIST
+# Neural network from scratch
 
-This project is a **from-scratch** implementation of a fully connected (dense) neural network trained on **MNIST** digit classification (0–9). It uses only **NumPy** for the actual neural network computations (plus `idx2numpy` to read MNIST IDX files and `matplotlib` for visualisation).
+A NumPy implementation of dense layers, backpropagation and mini-batch stochastic gradient descent. It classifies handwritten MNIST digits without an automatic differentiation library. The forward pass, loss and gradients are all in [main.py](main.py).
 
-The entire project lives in a single file: **`main.py`**.
+A recorded ten-epoch run of the `784 → 100 → 20 → 10` network reached **96.18% accuracy on the 10,000 official test images**. [Results and hyperparameters](results/mnist-seed7.json).
 
----
+## Run it
 
-## How to run
-
-Install dependencies:
+Python 3.11+ and NumPy are the only runtime requirements. The four MNIST IDX files are already included in `Data/`.
 
 ```bash
-pip install numpy idx2numpy matplotlib
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+python main.py --epochs 10 --metrics results/my-run.json
 ```
 
-Place the MNIST IDX files under `./Data` using the same paths referenced in `main.py`:
-
-- `./Data/train-images.idx3-ubyte`
-- `./Data/train-labels.idx1-ubyte`
-- `./Data/t10k-images-idx3-ubyte/t10k-images-idx3-ubyte`
-- `./Data/t10k-labels-idx1-ubyte/t10k-labels-idx1-ubyte`
-
-Run:
+For a short smoke run:
 
 ```bash
-python main.py
+python main.py --epochs 1 --train-limit 500 --validation-size 500 --hidden 16 --batch-size 64
 ```
 
-The script trains for a fixed number of epochs, prints the average mini-batch cost per epoch, then evaluates on the test set.
+The CLI accepts `--seed`, `--hidden`, `--learning-rate`, `--batch-size` and `--data`; run `python main.py --help` for details. Importing `main` does not load data or start training. `Network([2, 3, 2], seed=7)` also works independently of MNIST.
 
----
+## The implementation
 
-## The maths behind the network
+All executable logic is in [main.py](main.py). Inputs use columns for examples: a batch has shape `(features, cases)`. A layer stores weights `(outputs, inputs)` and a bias `(outputs, 1)`, so the forward operation is `sigmoid(W @ A + b)` without transposing parameter arrays.
 
-### Shapes and notation (matches the code)
+The loss is the mean squared error over **both output neurons and examples**:
 
-The code uses **column-major batches**:
+$$L = \frac{1}{Km}\sum_{k=1}^{K}\sum_{j=1}^{m}(A_{kj}-Y_{kj})^2.$$
 
-- A mini-batch of inputs is a matrix
+Backpropagation starts with $\delta_L=2(A_L-Y)\odot A_L\odot(1-A_L)/(Km)$. At each layer, `dW = delta @ previous_activation.T` and `db = delta.sum(axis=1, keepdims=True)`. Propagating through `W.T` and the previous sigmoid derivative yields the next delta. The division happens once, matching the reported loss exactly. All gradients are computed before any parameter is updated.
 
-$$
-X \in \mathbb{R}^{n_0 \times m}
-$$
+Sigmoid uses `exp(-abs(z))` with separate positive/negative expressions to avoid overflow without clipping the mathematical function. Weight standard deviation is `1/sqrt(fan_in)` and biases start at zero; this avoids the large initial pre-activations of unscaled Gaussian weights. Training shuffles the cases each epoch using an explicit random generator. A short final batch is included and epoch losses are weighted by its actual size.
 
-where:
-- $n_0 = 784$ for MNIST ($28\times 28$ pixels flattened)
-- $m$ is the number of examples in the batch
+The network keeps sigmoid outputs and MSE to retain the original project's derivation. This costs learning efficiency: sigmoid saturates and MSE adds another small derivative at the output. Softmax with cross-entropy would be a sensible alternative for mutually exclusive classes. The present outputs are independent scores in `[0,1]`, **not a calibrated probability distribution**; predictions use their argmax. Training and evaluation use the same forward computation.
 
-For each layer $\ell \in \{1,\dots,L\}$:
+## Evaluation and evidence
 
-- Weights:
+The reported run uses seed 7, learning rate 10, batch size 100 and ten fixed epochs. A seeded shuffle reserves 5,000 examples from the official 60,000-image training set for validation, leaving 55,000 for fitting. The official test set is evaluated once after training. The resulting validation accuracy is **95.90%**, test accuracy **96.18%** and test MSE **0.006486**. This is one run, with no claim of uncertainty across random seeds or a hyperparameter search. Test results should not be used to choose subsequent hyperparameters.
 
-$$
-W^{(\ell)} \in \mathbb{R}^{n_{\ell} \times n_{\ell-1}}
-$$
+`online_train_mse` is an average of losses measured before each mini-batch update, across changing parameters. Validation and test losses use one fixed network. Their meanings differ, so the training number should not be read as an exact end-of-epoch training-set loss.
 
-- Biases:
+The six tests check:
 
-$$
-b^{(\ell)} \in \mathbb{R}^{n_{\ell} \times 1}
-$$
+- Every weight and bias gradient against central finite differences on a small multilayer, multicase network.
+- Learning a small classification problem, including a partial batch and batch size larger than the dataset.
+- Stable sigmoid evaluation at extreme inputs, deterministic training, input/label validation and single-case shapes.
+- IDX header and exact payload-length validation, including truncated data.
 
-- Pre-activations and activations:
+CI runs these tests and a small MNIST training/evaluation run. The full result was produced with Python 3.13 and NumPy 2.5.3; floating-point rounding and BLAS implementations can cause small differences on another machine. For similar CPU thread settings, prefix the command with `OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1`.
 
-$$
-Z^{(\ell)} = W^{(\ell)}A^{(\ell-1)} + b^{(\ell)}, \qquad A^{(\ell)} = \sigma\big(Z^{(\ell)}\big)
-$$
+## Background and limits
 
-with $A^{(0)} = X$.
+The [original notebook](historical/original-mnist.ipynb) preserves the derivation and acknowledges Michael Nielsen's *Neural Networks and Deep Learning*. MNIST is by Yann LeCun, Corinna Cortes and Christopher Burges.
 
-> **Important detail (implementation):** in `main.py`, biases are stored as row vectors of shape `(1, n_l)` but are used as column vectors via transpose (`b.T`) so they broadcast correctly across the batch.
+The later implementation fixes loss and gradient scaling, removes import-time training and adds explicit seeds and data partitions. The network keeps sigmoid and MSE so the derivation stays easy to follow. Softmax with cross-entropy would be a useful next comparison.
 
----
-
-### Activation: sigmoid
-
-The network uses the sigmoid function at *every* layer:
-
-$$
-\sigma(z) = \frac{1}{1 + e^{-z}}
-$$
-
-Its derivative is:
-
-$$
-\sigma'(z) = \sigma(z)\big(1 - \sigma(z)\big)
-$$
-
-In backprop, this is used as an elementwise (Hadamard) factor.
-
----
-
-### Cost function used in training (mean squared error)
-
-Labels are converted to one-hot vectors (10 classes). For a single training example, the code computes a mean-squared style loss:
-
-$$
-C = \frac{1}{10}\sum_{k=1}^{10} \big(a_k^{(L)} - y_k\big)^2
-$$
-
-Over a mini-batch of size $m$, training effectively optimises the average cost.
-
----
-
-### Backpropagation (what `backProp(...)` is doing)
-
-Define the **error** at layer $\ell$ as:
-
-$$
-\delta^{(\ell)} = \frac{\partial C}{\partial Z^{(\ell)}}
-$$
-
-#### Output layer error
-
-For MSE + sigmoid output, the chain rule gives:
-
-$$
-\delta^{(L)} = \frac{\partial C}{\partial A^{(L)}} \odot \sigma'\big(Z^{(L)}\big)
-$$
-
-and
-
-$$
-\frac{\partial C}{\partial A^{(L)}} \propto 2\big(A^{(L)} - Y\big)
-$$
-
-So the code computes (up to constant scaling):
-
-$$
-\delta^{(L)} = 2\big(A^{(L)} - Y\big) \odot \sigma'\big(Z^{(L)}\big)
-$$
-
-#### Propagating errors backwards
-
-For earlier layers:
-
-$$
-\delta^{(\ell)} = \big(W^{(\ell+1)}\big)^T\delta^{(\ell+1)} \odot \sigma'\big(Z^{(\ell)}\big)
-$$
-
-This is exactly the pattern inside the loop that walks backwards through `layers`.
-
-#### Gradients for weights and biases
-
-For a mini-batch:
-
-$$
-\frac{\partial C}{\partial W^{(\ell)}} = \frac{1}{m}\,\delta^{(\ell)}\big(A^{(\ell-1)}\big)^T
-$$
-
-$$
-\frac{\partial C}{\partial b^{(\ell)}} = \frac{1}{m}\sum_{i=1}^{m} \delta^{(\ell)}_{:,i}
-$$
-
-**Implementation note:** the code forms weight gradients as
-
-$$
-(A^{(\ell-1)})\,(\delta^{(\ell)})^T
-$$
-
-(which is the transpose of the conventional formula) and then transposes again during the parameter update.
-
----
-
-### SGD parameter update
-
-For learning rate $\eta$:
-
-$$
-W^{(\ell)} \leftarrow W^{(\ell)} - \eta\,\frac{\partial C}{\partial W^{(\ell)}}
-$$
-
-$$
-b^{(\ell)} \leftarrow b^{(\ell)} - \eta\,\frac{\partial C}{\partial b^{(\ell)}}
-$$
-
-The function `stochasticGradientDescent(trainingRate)` loops over mini-batches and performs this update per batch.
-
----
-
-## Where the maths appears in `main.py`
-
-### Data prep
-
-- MNIST images are normalised to $[0,1]$ by dividing by 255.
-- Each image is flattened to a 784-vector.
-- The dataset is transposed so that inputs have shape `(784, n_samples)`.
-
-Functions:
-- `createDesiredOutputs(labels)` builds the one-hot matrix $Y \in \mathbb{R}^{10 \times n}$.
-- `displayImage(dataset, num)` renders an image column.
-
-### Network representation
-
-- `layers` is a list of layers.
-- Each layer is stored as `[W, b]` where:
-  - `W` has shape `(n_out, n_in)`
-  - `b` has shape `(1, n_out)`
-
-`initialiseNetwork([100, 20])` builds:
-
-$$
-784 \rightarrow 100 \rightarrow 20 \rightarrow 10
-$$
-
-### Forward pass
-
-- `feedforward(inputs)` returns:
-  - `finalOutput` = $A^{(L)}$
-  - `weightedOutputs` = list of activations $A^{(1)},\dots,A^{(L)}$
-  - `unweightedOutputs` = list of pre-activations $Z^{(1)},\dots,Z^{(L)}$
-
-### Backward pass
-
-- `backProp(...)` takes the stored $Z$ and $A$ values and returns averaged gradients for each layer.
-
-### Batching
-
-- `createBatches(data, labels, batchSize)` splits the matrices into equal-sized mini-batches.
-
-### Test-time normalisation
-
-- `feedforwardTest(inputs)` runs a forward pass and then applies `softmax` **column-wise**.
-- Predictions are obtained via `argmax`.
-
----
-
-## Acknowledgements / references
-
-The explanations and standard neural-network derivations in this README were informed by **Michael Nielsen’s free online book**:
-
-- Michael A. Nielsen, *Neural Networks and Deep Learning* (Determination Press, 2015). Available at: `http://neuralnetworksanddeeplearning.com/`
-
+This is a small educational model. It has no convolution, regularisation, checkpointing or GPU path. The reported accuracy comes from one fixed run rather than a search across architectures or seeds.

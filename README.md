@@ -1,8 +1,8 @@
-# A neural network from scratch
+# Neural network from scratch
 
-A dense neural network that learns to classify handwritten MNIST digits using **NumPy for the forward pass, backpropagation and mini-batch SGD**. The goal is to make the chain rule executable and inspectable: the network has no automatic differentiation, framework layers or optimiser library hiding the gradient calculations.
+A NumPy implementation of dense layers, backpropagation and mini-batch stochastic gradient descent. It classifies handwritten MNIST digits without an automatic differentiation library. The forward pass, loss and gradients are all in [main.py](main.py).
 
-A reproducible ten-epoch run of the `784 → 100 → 20 → 10` network reaches **96.18% accuracy on the 10,000 official test images**. The full [run record](results/mnist-seed7.json) includes each epoch's loss, validation accuracy, seed and hyperparameters. This is a small educational implementation and a numerical-correctness exercise; it is not a state-of-the-art MNIST model.
+A recorded ten-epoch run of the `784 → 100 → 20 → 10` network reached **96.18% accuracy on the 10,000 official test images**. [Results and hyperparameters](results/mnist-seed7.json).
 
 ## Run it
 
@@ -36,7 +36,7 @@ Backpropagation starts with $\delta_L=2(A_L-Y)\odot A_L\odot(1-A_L)/(Km)$. At ea
 
 Sigmoid uses `exp(-abs(z))` with separate positive/negative expressions to avoid overflow without clipping the mathematical function. Weight standard deviation is `1/sqrt(fan_in)` and biases start at zero; this avoids the large initial pre-activations of unscaled Gaussian weights. Training shuffles the cases each epoch using an explicit random generator. A short final batch is included and epoch losses are weighted by its actual size.
 
-The network keeps sigmoid outputs and MSE to retain the original project's derivation. This costs learning efficiency: sigmoid saturates and MSE adds another small derivative at the output. Softmax with cross-entropy would be a sensible alternative for mutually exclusive classes. The present outputs are independent scores in `[0,1]`, **not a calibrated probability distribution**; predictions use their argmax. Applying softmax only at test time would leave argmax unchanged while making the test loss incomparable, so the revised code uses the same forward computation throughout.
+The network keeps sigmoid outputs and MSE to retain the original project's derivation. This costs learning efficiency: sigmoid saturates and MSE adds another small derivative at the output. Softmax with cross-entropy would be a sensible alternative for mutually exclusive classes. The present outputs are independent scores in `[0,1]`, **not a calibrated probability distribution**; predictions use their argmax. Training and evaluation use the same forward computation.
 
 ## Evaluation and evidence
 
@@ -53,10 +53,10 @@ The six tests check:
 
 CI runs these tests and a small MNIST training/evaluation run. The full result was produced with Python 3.13 and NumPy 2.5.3; floating-point rounding and BLAS implementations can cause small differences on another machine. For similar CPU thread settings, prefix the command with `OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1`.
 
-## Original work and the revision
+## Background and limits
 
-The [original notebook](historical/original-mnist.ipynb) remains unchanged as the learning record. Its derivation acknowledged Michael Nielsen's *Neural Networks and Deep Learning*. The MNIST dataset is by Yann LeCun, Corinna Cortes and Christopher Burges; the dataset and the underlying algorithms are not original contributions of this repository. The implemented contribution is the NumPy training code and its numerical verification.
+The [original notebook](historical/original-mnist.ipynb) preserves the derivation and acknowledges Michael Nielsen's *Neural Networks and Deep Learning*. MNIST is by Yann LeCun, Corinna Cortes and Christopher Burges.
 
-The 2026 revision removes global mutable network state, import-time training, duplicate dataset copies and duplicated evaluation logic. It fixes the original tenfold mismatch between loss and gradient scaling, provides explicit seeds and partition sizes and reports accuracy as a fraction of all evaluated examples instead of an average correct-count per assumed 100-case batch. These changes are later engineering improvements, not the original notebook's results.
+The later implementation fixes loss and gradient scaling, removes import-time training and adds explicit seeds and data partitions. The network keeps sigmoid and MSE so the derivation stays easy to follow. Softmax with cross-entropy would be a useful next comparison.
 
-The model has no regularisation, checkpointing, convolution, data augmentation or GPU path. It loads the images into memory as float64 arrays and retains activations for each batch. That makes the mathematics and finite-difference tests straightforward, at the cost of memory and throughput. A production classifier would need stronger baselines, error analysis, multiple seeds, calibrated outputs where needed and an inference artifact with input validation.
+This is a small educational model. It has no convolution, regularisation, checkpointing or GPU path. The reported accuracy comes from one fixed run rather than a search across architectures or seeds.

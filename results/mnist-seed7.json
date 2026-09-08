@@ -1,0 +1,101 @@
+{
+  "seed": 7,
+  "architecture": [
+    784,
+    100,
+    20,
+    10
+  ],
+  "learning_rate": 10.0,
+  "batch_size": 100,
+  "train_cases": 55000,
+  "validation_cases": 5000,
+  "test_cases": 10000,
+  "numpy_version": "2.5.3",
+  "history": [
+    {
+      "epoch": 1,
+      "online_train_mse": 0.06391038713014668,
+      "validation": {
+        "mse": 0.03144289638741939,
+        "accuracy": 0.8216
+      }
+    },
+    {
+      "epoch": 2,
+      "online_train_mse": 0.022584492647951843,
+      "validation": {
+        "mse": 0.01823285309279133,
+        "accuracy": 0.8934
+      }
+    },
+    {
+      "epoch": 3,
+      "online_train_mse": 0.0150621713844148,
+      "validation": {
+        "mse": 0.013624380790674656,
+        "accuracy": 0.9184
+      }
+    },
+    {
+      "epoch": 4,
+      "online_train_mse": 0.012303675235849274,
+      "validation": {
+        "mse": 0.011459436512166016,
+        "accuracy": 0.9288
+      }
+    },
+    {
+      "epoch": 5,
+      "online_train_mse": 0.010571737803912087,
+      "validation": {
+        "mse": 0.010019795948368824,
+        "accuracy": 0.939
+      }
+    },
+    {
+      "epoch": 6,
+      "online_train_mse": 0.00926657474868215,
+      "validation": {
+        "mse": 0.008966668870163941,
+        "accuracy": 0.9462
+      }
+    },
+    {
+      "epoch": 7,
+      "online_train_mse": 0.00828644022612811,
+      "validation": {
+        "mse": 0.008213538953538923,
+        "accuracy": 0.951
+      }
+    },
+    {
+      "epoch": 8,
+      "online_train_mse": 0.007495065974364691,
+      "validation": {
+        "mse": 0.007794484951841662,
+        "accuracy": 0.9528
+      }
+    },
+    {
+      "epoch": 9,
+      "online_train_mse": 0.006858911973875242,
+      "validation": {
+        "mse": 0.007164997149057924,
+        "accuracy": 0.9568
+      }
+    },
+    {
+      "epoch": 10,
+      "online_train_mse": 0.006349871539983179,
+      "validation": {
+        "mse": 0.0067298319557001695,
+        "accuracy": 0.959
+      }
+    }
+  ],
+  "test": {
+    "mse": 0.006485670241530299,
+    "accuracy": 0.9618
+  }
+}

@@ -1,5 +1,7 @@
 # Neural network from scratch
 
+[![tests](https://github.com/TahaKhanM/neural-network-from-scratch/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/TahaKhanM/neural-network-from-scratch/actions/workflows/tests.yml)
+
 A NumPy implementation of dense layers, backpropagation and mini-batch stochastic gradient descent. It classifies handwritten MNIST digits without an automatic differentiation library. The forward pass, loss and gradients are all in [main.py](main.py).
 
 A recorded ten-epoch run of the `784 → 100 → 20 → 10` network reached **96.18% accuracy on the 10,000 official test images**. [Results and hyperparameters](results/mnist-seed7.json).
